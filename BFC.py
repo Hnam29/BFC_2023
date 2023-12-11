@@ -25,7 +25,7 @@ from st_aggrid import JsCode, AgGrid, GridOptionsBuilder, GridUpdateMode
 
 warnings.filterwarnings('ignore')
 
-image = Image.open('https://github.com/Hnam29/BFC_2023/blob/main/bfc2023.png')  
+image = Image.open('bfc2023.png')  
 
 st.set_page_config(page_title='DataAnalystWebApp', page_icon=image, layout='wide', initial_sidebar_state='auto')
 todayDate = dt.date.today()
