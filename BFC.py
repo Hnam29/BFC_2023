@@ -13,7 +13,7 @@ import pyexcel as p
 import re
 import io
 import warnings
-from footer import footer
+# from footer import footer
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
