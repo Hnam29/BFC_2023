@@ -2149,698 +2149,698 @@ if selected == 'Analyze':
 
 
 
-    if process_type == 'Add Excel row(s)':
-
-        result_container = st.empty()
-        file_upload = st.file_uploader('Upload your file')
-        default_dataset = st.toggle('Using default dataset')
-        st.info('Default dataset: Fruit.xlsx')
-
-        if file_upload is not None and not default_dataset:
-            df = process_file(file_upload)
-            if df is not None:
-                # Initialize session state
-                if 'df' not in st.session_state:
-                    st.session_state.df = pd.DataFrame()
-                # Check if the session state DataFrame is empty
-                if st.session_state.df.empty:
-                    st.session_state.df = df
-                else:
-                    # Update the session state DataFrame with the loaded data
-                    st.session_state.df = pd.concat([st.session_state.df, df]).reset_index(drop=True).drop_duplicates()
-
-                # Get user input for selected columns
-                with st.expander("Records"):
-                    selected = st.multiselect('Filter:', st.session_state.df.columns)
-
-                # Automatically create a form for new records
-                if selected:
-                    st.sidebar.header("Add New Record")
-                    options_form = st.sidebar.form("Option Form")
-
-                    # Dictionary to store form data
-                    form_data = {}
-
-                    # Add form components based on selected columns
-                    for column in selected:
-                        if column != 'Date':
-                            # Determine the appropriate form component based on the data type
-                            data_type = st.session_state.df[column].dtype
-
-                            if np.issubdtype(data_type, np.number):
-                                # If it's a numeric column, use number_input
-                                form_data[column] = options_form.number_input(column)
-                            elif np.issubdtype(data_type, np.datetime64):
-                                # If it's a datetime column, use date_input
-                                form_data[column] = options_form.date_input(column)
-                            else:
-                                # Otherwise, use text_input
-                                form_data[column] = options_form.text_input(column)
-
-                    # Form submission button
-                    add_data = options_form.form_submit_button(label="Add")
-
-                    # Handle form submission
-                    if add_data:
-                        # Check for valid entries
-                        if all(form_data.values()):
-                            # Convert data types if needed
-                            for column, value in form_data.items():
-                                if np.issubdtype(st.session_state.df[column].dtype, np.number):
-                                    form_data[column] = float(value)
-                                elif np.issubdtype(st.session_state.df[column].dtype, np.datetime64):
-                                    form_data[column] = pd.to_datetime(value)
-
-                            # Update the session state DataFrame with the new record
-                            st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame.from_records([form_data])]).reset_index(drop=True).drop_duplicates()
-
-                            # Display success message
-                            st.success('Added row successfully!')
-                            # Display the updated DataFrame from session state
-                            result_container.write(st.session_state.df)
-                        else:
-                            # Display a warning if any field is empty
-                            st.warning('Please fill in all fields!')
-
-
-                with st.expander("Dashboard"):
-                    st.title("Real-Time / Live Dashboard")
-                    # Top-level filters
-                    column_name = st.selectbox('Select top-level filter:', st.session_state.df.columns,index=None,placeholder='...')
-                    if column_name is not None and column_name in st.session_state.df.columns:
-                        column = st.session_state.df[column_name]
-                        if not column.empty:
-                            column_values = column.unique()
-                            # Allow the user to select column values based on the selected column
-                            column_value = st.selectbox('Select column value:', column_values,index=None,placeholder='...')
-                            if column_value:
-
-                                # Creating a single-element container
-                                placeholder = st.empty()
-
-                                value1 = 0 # just for procedure
-                                value2 = 0
-                                value3 = 0
-
-                                column1 = st.selectbox('Select column 1:', st.session_state.df.columns,index=None,placeholder='...') # column1 is for mean
-                                column2 = st.selectbox('Select column 2:', st.session_state.df.columns,index=None,placeholder='...') # column2 is for count
-                                column3 = st.selectbox('Select column 3:', st.session_state.df.columns,index=None,placeholder='...') # column1 is for mean of sum
-
-                                if column1 and column2 and column3:
-
-                                    # Initialize the session state dictionary if not present
-                                    if 'pre' not in st.session_state:
-                                        st.session_state.pre = {}
-
-                                    # Check and initialize each value in the dictionary
-                                    value_keys = ['value1', 'value2', 'value3']
-                                    for key in value_keys:
-                                        if key not in st.session_state.pre:
-                                            st.session_state.pre[key] = 0
-
-                                    # Near real-time / live feed simulation
-                                    for seconds in range(200):
-                                        # Dynamically update the filtered DataFrame based on the latest data
-                                        df_filtered = st.session_state.df[st.session_state.df[column_name] == column_value]
-
-                                        value1 = np.mean(df_filtered[column1])
-                                        value2 = int(df_filtered[column2].count())
-                                        value3 = np.mean(df_filtered[column3]) * value1
-
-                                        kpi1, kpi2, kpi3 = st.columns(3)
-                                        kpi1.metric(
-                                            label=f"Average {value1}",
-                                            value=f'$ {round(value1, 0)} ',
-                                            delta=round(value1 - st.session_state.pre['value1'], 0)
-                                        )
-                                        kpi2.metric(
-                                            label=f"{value2} Count",
-                                            value=f'$ {value2} ',
-                                            delta=value2 - st.session_state.pre['value2']
-                                        )
-                                        kpi3.metric(
-                                            label=f"Average {value3}",
-                                            value=f"$ {round(value3, 2)} ",
-                                            delta=round(value3 - st.session_state.pre['value3'], 0)
-                                        )
-
-                                        c1, c2 = st.columns(2)
-                                        with c1:
-                                            st.write(f"Average {column1}:", value1)
-                                            st.write("Quantity Records:", value2)
-                                            st.write(f"Average {column3}:", value3)
-                                        with c2:
-                                            st.write(f"Delta Average {column1} :", round(value1 - st.session_state.pre['value1'], 0))
-                                            st.write("Delta Quantity Records:",   value2 - st.session_state.pre['value2'])
-                                            st.write(f"Delta Average {column3}:",  round(value3 - st.session_state.pre['value3'], 0))
-
-                                        # Update the previous values in st.session_state.pre
-                                        st.session_state.pre['value1'] = value1
-                                        st.session_state.pre['value2'] = value2
-                                        st.session_state.pre['value3'] = value3
-
-                                        fig_col1, fig_col2 = st.columns(2)
-                                        x_heatmap = fig_col2.selectbox('Select x-axis heatmap:', df_filtered.columns,index=None,placeholder='...') 
-                                        y_heatmap = fig_col2.selectbox('Select y-axis heatmap:', df_filtered.columns,index=None,placeholder='...') 
-                                        x_histo   = fig_col1.selectbox('Select x-axis histogram:', df_filtered.columns,index=None,placeholder='...') 
-                                        y_histo   = fig_col1.selectbox('Select y-axis histogram (optional):', df_filtered.columns,index=None,placeholder='...') 
-                                        if x_heatmap and y_heatmap and x_histo:
-                                            fig_col2.markdown("#### Heatmap")
-                                            fig = px.density_heatmap(data_frame=df_filtered, y=y_heatmap, x=x_heatmap)
-                                            fig.update_layout(width=300, height=400) 
-                                            fig_col2.write(fig)
-
-                                            fig_col1.markdown("#### Histogram")
-                                            fig2 = px.histogram(data_frame=df_filtered, x=x_histo)
-                                            fig2.update_layout(width=500, height=350) 
-                                            fig_col1.write(fig2)
-                                        else:
-                                            st.warning('Please specify the requirements')
-
-                                        st.markdown("#### Detailed Data View")
-                                        st.dataframe(df_filtered)       
-                                        time.sleep(2)
-                                        if seconds == 0:
-                                            break
-
-                                else:
-                                    st.warning('Please specify the requirements')
-                            else:
-                                st.warning('Please specify the column value')
-
-                download_as_xlsx(st.session_state.df)
-                # Clear the previous output
-                result_container.empty()
-
-
-        elif file_upload is None and default_dataset:
-                df = pd.read_excel('Fruit.xlsx')
-                Analytics()  
-
-                with st.expander("Records"):
-                    selected = st.multiselect('Filter:', df.columns[3:])
-                    st.dataframe(df[selected], use_container_width=True)
-
-                    if selected:
-                        # Add form for new record
-                        st.sidebar.header("Add New Record")
-                        options_form = st.sidebar.form("Option Form")
-                        date_details = None  # Initialize date_details
-                        origin = None  # Initialize origin
-                        code = None
-                        address = None
-                        import_country = None
-                        tax = None
-                        export_type = None
-                        product_type = None
-                        unit = None
-                        currency = None
-                        hscode = None
-                        description = None
-                        price = None
-                        weight = 0
-
-                        # Add form components
-                        for column in selected:
-                            if column == 'Date':
-                                date_details = options_form.date_input("Select time", todayDate)
-                            elif column == 'Mã_tờ_khai':
-                                code = options_form.text_input("Code", max_chars=12, disabled=False)
-                            elif column == 'Công_ty_nhập':
-                                import_company = options_form.text_input("Import Company", value='BFC', disabled=False)
-                            elif column == 'Địa_chỉ':
-                                address = options_form.text_input("Company Address", disabled=False)
-                            elif column == 'Xuất_xứ':
-                                import_country = options_form.text_input("Import Country", value='Vietnam', disabled=False)
-                            elif column == 'Nhà_cung_cấp':
-                                supplier = options_form.text_input("Supplier", disabled=False)
-                            elif column == 'Mã_số_thuế':
-                                tax = options_form.number_input("Tax Code", max_value=12, disabled=False)
-                            elif column == 'Xuất_xứ':
-                                origin = options_form.selectbox("Origin", ["United States", "Germany", 'Japan', 'China', 'Slovenia', 'Thailand', 'China', 'Spain', 'Singapore', 'India'])
-                            elif column == 'Loại':
-                                export_type = options_form.selectbox("Export Type", ["Xuất Trực Tiếp", "Hộ Kinh Doanh Cá Thể", "Xuất Uỷ Thác"])
-                            elif column == 'HScode':
-                                hscode = options_form.text_input("Tax Code", max_chars=8, placeholder='HScode requires 8 digits', disabled=False)
-                            elif column == 'Product':
-                                product = options_form.text_input("Product Name", value='Orange', disabled=False)
-                            elif column == 'Mô_tả_sản_phẩm':
-                                description = options_form.text_input("Product Description", value='', disabled=False)
-                            elif column == 'PhânLoại':
-                                product_type = options_form.selectbox("Product Type", ["Sấy", "Sấy Khô", "Sấy Giòn", "Sấy Dẻo"])
-                            elif column == 'Số_lượng':
-                                quantity = options_form.number_input("Quantity", min_value=0, disabled=False)
-                            elif column == 'Đơn_vị':
-                                unit = options_form.selectbox("Unit", ["KG", "Ton", 'Bag'])
-                            elif column == 'Khối_lượng':
-                                weight = options_form.number_input("Weight", min_value=0, disabled=False)
-                            elif column == 'Đơn_giá':
-                                price = options_form.number_input("Price per unit", min_value=0.1, step=0.1, disabled=False)
-                            elif column == 'Tiền_tệ':
-                                currency = options_form.text_input("Currency", value='USD', disabled=True)
-
-                        # Form submission button
-                        add_data = options_form.form_submit_button(label="Add")
-
-                        if add_data:
-                            if 'import_company' in locals() and 'supplier' in locals() and 'product' in locals() and 'quantity' in locals() and date_details is not None:
-                                if date_details.day is not None and date_details.month is not None and date_details.year is not None:
-                                    df = pd.concat([df, pd.DataFrame.from_records([{
-                                        'Day': date_details.day,
-                                        'Month': date_details.month,
-                                        'Year': date_details.year,
-                                        'Date': date_details,
-                                        'Mã_tờ_khai': code,
-                                        'Công_ty_nhập': import_company,
-                                        'Địa_chỉ': address,
-                                        'Nước_nhập': import_country,
-                                        'Nhà_cung_cấp': supplier,
-                                        'Mã_số_thuế': tax,
-                                        'Xuất_xứ': origin,
-                                        'Loại': export_type,
-                                        'HScode': hscode,
-                                        'Product': product,
-                                        'Mô_tả_sản_phẩm': description,
-                                        'PhânLoại': product_type,
-                                        'Số_lượng': float(quantity),
-                                        'Đơn_vị': unit,
-                                        'Khối_lượng': float(weight),
-                                        'Thành_tiền': float(quantity * price),
-                                        'Tiền_tệ': currency,
-                                        'Đơn_giá': float(price)
-                                    }])]).reset_index(drop=True)   # solve the error: index of latest record is 0
-                                    try:
-                                        df.to_excel("Fruit.xlsx", index=False)
-                                        st.success('Add row(s) successfully $')
-
-                                    except:
-                                        st.warning("Unable to write, Please close your dataset !!")
-                                else:
-                                    st.warning("Please select a valid date.")
-                            else:
-                                st.sidebar.error("Fields [Import Company, Supplier, Product, Quantity] are required", icon="🚨")
-                    else:
-                        st.warning('Please select column(s) first!')
-
-
-                with st.expander("Dashboard"):
-
-                        st.title("Real-Time / Live Dashboard")
-                        # Top-level filters
-                        product_filter = st.selectbox("Select the Product", pd.unique(df["Product"]))
-
-                        # Creating a single-element container
-                        placeholder = st.empty()
-                        df_filtered = df[df["Product"] == product_filter]
-
-                        # Initialize previous values using st.session_state
-                        if 'pre_avg_price' not in st.session_state:
-                            st.session_state.pre_avg_price = 0
-                            st.session_state.pre_count_quantity = 0
-                            st.session_state.pre_avg_total = 0
-
-                        # Near real-time / live feed simulation
-                        for seconds in range(200):
-                            avg_price = np.mean(df_filtered["Đơn_giá"])
-                            count_quantity = int(df_filtered["Số_lượng"].count())
-                            avg_total = np.mean(df_filtered["Số_lượng"]) * avg_price
-
-                            kpi1, kpi2, kpi3 = st.columns(3)
-                            kpi1.metric(
-                                    label="Average Price",
-                                    value=f'$ {round(avg_price,0)} ',
-                                    delta= round(avg_price - st.session_state.pre_avg_price,0)
-                            )
-                            kpi2.metric(
-                                    label="Quantity Count",
-                                    value=f'$ {count_quantity} ',
-                                    delta= count_quantity - st.session_state.pre_count_quantity
-                            )
-                            kpi3.metric(
-                                    label="Average Total",
-                                    value=f"$ {round(avg_total, 2)} ",
-                                    delta= round(avg_total - st.session_state.pre_avg_total,0)
-                            )
-
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                st.write("Average Price:", avg_price)
-                                st.write("Quantity Records:", count_quantity)
-                                st.write("Average Total:", avg_total)
-                            with c2:
-                                st.write("Delta Average Price :", round(avg_price - st.session_state.pre_avg_price, 0))
-                                st.write("Delta Quantity Records:", count_quantity - st.session_state.pre_count_quantity)
-                                st.write("Delta Average Total:", round(avg_total - st.session_state.pre_avg_total, 0))
-
-                            # Update previous values in st.session_state
-                            st.session_state.pre_avg_price = avg_price
-                            st.session_state.pre_count_quantity = count_quantity
-                            st.session_state.pre_avg_total = avg_total
-
-                            fig_col1, fig_col2 = st.columns(2)
-                            fig_col1.markdown("#### Heatmap")
-                            fig = px.density_heatmap(data_frame=df_filtered, y="Đơn_giá", x="Thành_tiền")
-                            fig.update_layout(width=300, height=400) 
-                            fig_col1.write(fig)
-                            fig_col2.markdown("#### Histogram")
-                            fig2 = px.histogram(data_frame=df_filtered, x="Đơn_giá")
-                            fig2.update_layout(width=500, height=350) 
-                            fig_col2.write(fig2)
-
-                            st.markdown("#### Detailed Data View")
-                            # Convert date column to string before displaying
-                            df_filtered_str = df_filtered.copy()
-                            if 'Date' in df_filtered_str.columns:
-                                df_filtered_str['Date'] = df_filtered_str['Date'].astype(str)
-
-                            st.dataframe(df_filtered_str)
-
-                            time.sleep(2)
-                            if seconds == 0:
-                                break
-
-        elif file_upload and default_dataset:
-            st.error('Cannot process the uploaded and default simultaneously')
-
-        else:
-            st.error('Please specify your requirement')
-
-
-
-
-from soccerplots.radar_chart import Radar
-# Function to create a gauge chart
-def create_gauge_chart(value, title):
-    fig = go.Figure()
-
-    fig.add_trace(go.Indicator(
-        mode="gauge+number",
-        value=value,
-        number={'suffix': "%"},  # Include the '%' symbol next to the value
-        domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': f'{title} (%)'},
-        gauge=dict(
-            axis=dict(range=[None, 1000], dtick=100),
-            bar=dict(color="lightgray"),
-            steps=[
-                dict(range=[0, 100], color="red"),
-                dict(range=[100, 200], color="yellow"),
-                dict(range=[200, 1000], color="green")
-            ],
-        )
-    ))
-    fig.update_layout(height=230, width=310,margin=dict(t=40, r=20, l=20, b=20))
-    return fig
-
-# Progress bar -> show the progress of each person/department/all between KPI planned and done 
-def Progressbar():
-    st.markdown("""
-                <style>
-                    .stProgress > div > div > div > div {
-                            background-image: linear-gradient(to right, violet, indigo, blue, green, yellow, orange, red);
-                    }
-                </style>
-                """, unsafe_allow_html=True)
-    target  = df['Chỉ tiêu'].sum()
-    current = df["Thực hiện"].sum()
-    percent = round(current/target*100)
-    mybar=st.progress(0)
-    if percent>100:
-        st.subheader("Target done !")
-    else:
-        mybar.progress(percent,text=f"BFC reached {percent:.0f}% of ${target:.2f}")
-
-# Function to create a radar chart
-def generate_radar_chart(df, main_object_column, kpi_columns):
-    fig = go.Figure()
-
-    # Calculate the max range for 'KPI Quy đổi', 'KPI tính lương', 'TH/CT' based on the size of each employee group
-    df['max_range'] = df.groupby(main_object_column).transform('size') * 100
-
-    for main_object in df[main_object_column].unique():
-        values = df[df[main_object_column] == main_object][kpi_columns].sum().tolist()
-        sum_values = np.sum(values)
-
-        fig.add_trace(go.Scatterpolar(
-            r=values,
-            theta=kpi_columns,
-            fill='toself',
-            name=main_object
-        ))
-
-    max_range = 100 * df[kpi_columns].sum(axis=1).max()
-    fig.update_layout(
-    height=350, width=450,
-    polar=dict(
-        radialaxis=dict(
-            visible=True,
-            range=[0, df['max_range'].max()]
-        )),
-    showlegend=True
-    )
-    return fig
-
-
-if selected == 'Dashboard':
-    nav_select = option_menu(
-                menu_title=None, 
-                options=['Stock','KPIs'], 
-                icons=['aspect-ratio','pencil-square'], 
-                menu_icon='three-dots', 
-                default_index=0, 
-                orientation='horizontal',
-                styles={
-                    'container':{'padding':'0!important','background-color':'#A979BF'},
-                    'icon':{'color':'black','font-size':'25px'},
-                    'nav-link': {
-                        'font-size':'22px',
-                        'text-align':'center',
-                        'margin': '0px',
-                        'line-height': '0.5',
-                        '--hover-color': '#eee',
-                    },
-                    'nav-link-selected': {'background-color':'#dabb42'},
-                },
-            )
-    if nav_select == 'KPIs':
-        default_report = st.toggle('Use default KPI database')
-        file_upload = st.file_uploader("Upload a file (XLSX or CSV)", type=["xlsx", "csv"])
-        if not default_report and file_upload is not None:
-            df = process_file(file_upload)
-            if df is not None:
-                date_column = st.sidebar.selectbox('Choose Date column:', df.columns,index=None,placeholder='...') 
-                with st.container:
-                    c1,c2,c3,c4,c5 = st.columns(5)
+    # if process_type == 'Add Excel row(s)':
+
+    #     result_container = st.empty()
+    #     file_upload = st.file_uploader('Upload your file')
+    #     default_dataset = st.toggle('Using default dataset')
+    #     st.info('Default dataset: Fruit.xlsx')
+
+    #     if file_upload is not None and not default_dataset:
+    #         df = process_file(file_upload)
+    #         if df is not None:
+    #             # Initialize session state
+    #             if 'df' not in st.session_state:
+    #                 st.session_state.df = pd.DataFrame()
+    #             # Check if the session state DataFrame is empty
+    #             if st.session_state.df.empty:
+    #                 st.session_state.df = df
+    #             else:
+    #                 # Update the session state DataFrame with the loaded data
+    #                 st.session_state.df = pd.concat([st.session_state.df, df]).reset_index(drop=True).drop_duplicates()
+
+    #             # Get user input for selected columns
+    #             with st.expander("Records"):
+    #                 selected = st.multiselect('Filter:', st.session_state.df.columns)
+
+    #             # Automatically create a form for new records
+    #             if selected:
+    #                 st.sidebar.header("Add New Record")
+    #                 options_form = st.sidebar.form("Option Form")
+
+    #                 # Dictionary to store form data
+    #                 form_data = {}
+
+    #                 # Add form components based on selected columns
+    #                 for column in selected:
+    #                     if column != 'Date':
+    #                         # Determine the appropriate form component based on the data type
+    #                         data_type = st.session_state.df[column].dtype
+
+    #                         if np.issubdtype(data_type, np.number):
+    #                             # If it's a numeric column, use number_input
+    #                             form_data[column] = options_form.number_input(column)
+    #                         elif np.issubdtype(data_type, np.datetime64):
+    #                             # If it's a datetime column, use date_input
+    #                             form_data[column] = options_form.date_input(column)
+    #                         else:
+    #                             # Otherwise, use text_input
+    #                             form_data[column] = options_form.text_input(column)
+
+    #                 # Form submission button
+    #                 add_data = options_form.form_submit_button(label="Add")
+
+    #                 # Handle form submission
+    #                 if add_data:
+    #                     # Check for valid entries
+    #                     if all(form_data.values()):
+    #                         # Convert data types if needed
+    #                         for column, value in form_data.items():
+    #                             if np.issubdtype(st.session_state.df[column].dtype, np.number):
+    #                                 form_data[column] = float(value)
+    #                             elif np.issubdtype(st.session_state.df[column].dtype, np.datetime64):
+    #                                 form_data[column] = pd.to_datetime(value)
+
+    #                         # Update the session state DataFrame with the new record
+    #                         st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame.from_records([form_data])]).reset_index(drop=True).drop_duplicates()
+
+    #                         # Display success message
+    #                         st.success('Added row successfully!')
+    #                         # Display the updated DataFrame from session state
+    #                         result_container.write(st.session_state.df)
+    #                     else:
+    #                         # Display a warning if any field is empty
+    #                         st.warning('Please fill in all fields!')
+
+
+    #             with st.expander("Dashboard"):
+    #                 st.title("Real-Time / Live Dashboard")
+    #                 # Top-level filters
+    #                 column_name = st.selectbox('Select top-level filter:', st.session_state.df.columns,index=None,placeholder='...')
+    #                 if column_name is not None and column_name in st.session_state.df.columns:
+    #                     column = st.session_state.df[column_name]
+    #                     if not column.empty:
+    #                         column_values = column.unique()
+    #                         # Allow the user to select column values based on the selected column
+    #                         column_value = st.selectbox('Select column value:', column_values,index=None,placeholder='...')
+    #                         if column_value:
+
+    #                             # Creating a single-element container
+    #                             placeholder = st.empty()
+
+    #                             value1 = 0 # just for procedure
+    #                             value2 = 0
+    #                             value3 = 0
+
+    #                             column1 = st.selectbox('Select column 1:', st.session_state.df.columns,index=None,placeholder='...') # column1 is for mean
+    #                             column2 = st.selectbox('Select column 2:', st.session_state.df.columns,index=None,placeholder='...') # column2 is for count
+    #                             column3 = st.selectbox('Select column 3:', st.session_state.df.columns,index=None,placeholder='...') # column1 is for mean of sum
+
+    #                             if column1 and column2 and column3:
+
+    #                                 # Initialize the session state dictionary if not present
+    #                                 if 'pre' not in st.session_state:
+    #                                     st.session_state.pre = {}
+
+    #                                 # Check and initialize each value in the dictionary
+    #                                 value_keys = ['value1', 'value2', 'value3']
+    #                                 for key in value_keys:
+    #                                     if key not in st.session_state.pre:
+    #                                         st.session_state.pre[key] = 0
+
+    #                                 # Near real-time / live feed simulation
+    #                                 for seconds in range(200):
+    #                                     # Dynamically update the filtered DataFrame based on the latest data
+    #                                     df_filtered = st.session_state.df[st.session_state.df[column_name] == column_value]
+
+    #                                     value1 = np.mean(df_filtered[column1])
+    #                                     value2 = int(df_filtered[column2].count())
+    #                                     value3 = np.mean(df_filtered[column3]) * value1
+
+    #                                     kpi1, kpi2, kpi3 = st.columns(3)
+    #                                     kpi1.metric(
+    #                                         label=f"Average {value1}",
+    #                                         value=f'$ {round(value1, 0)} ',
+    #                                         delta=round(value1 - st.session_state.pre['value1'], 0)
+    #                                     )
+    #                                     kpi2.metric(
+    #                                         label=f"{value2} Count",
+    #                                         value=f'$ {value2} ',
+    #                                         delta=value2 - st.session_state.pre['value2']
+    #                                     )
+    #                                     kpi3.metric(
+    #                                         label=f"Average {value3}",
+    #                                         value=f"$ {round(value3, 2)} ",
+    #                                         delta=round(value3 - st.session_state.pre['value3'], 0)
+    #                                     )
+
+    #                                     c1, c2 = st.columns(2)
+    #                                     with c1:
+    #                                         st.write(f"Average {column1}:", value1)
+    #                                         st.write("Quantity Records:", value2)
+    #                                         st.write(f"Average {column3}:", value3)
+    #                                     with c2:
+    #                                         st.write(f"Delta Average {column1} :", round(value1 - st.session_state.pre['value1'], 0))
+    #                                         st.write("Delta Quantity Records:",   value2 - st.session_state.pre['value2'])
+    #                                         st.write(f"Delta Average {column3}:",  round(value3 - st.session_state.pre['value3'], 0))
+
+    #                                     # Update the previous values in st.session_state.pre
+    #                                     st.session_state.pre['value1'] = value1
+    #                                     st.session_state.pre['value2'] = value2
+    #                                     st.session_state.pre['value3'] = value3
+
+    #                                     fig_col1, fig_col2 = st.columns(2)
+    #                                     x_heatmap = fig_col2.selectbox('Select x-axis heatmap:', df_filtered.columns,index=None,placeholder='...') 
+    #                                     y_heatmap = fig_col2.selectbox('Select y-axis heatmap:', df_filtered.columns,index=None,placeholder='...') 
+    #                                     x_histo   = fig_col1.selectbox('Select x-axis histogram:', df_filtered.columns,index=None,placeholder='...') 
+    #                                     y_histo   = fig_col1.selectbox('Select y-axis histogram (optional):', df_filtered.columns,index=None,placeholder='...') 
+    #                                     if x_heatmap and y_heatmap and x_histo:
+    #                                         fig_col2.markdown("#### Heatmap")
+    #                                         fig = px.density_heatmap(data_frame=df_filtered, y=y_heatmap, x=x_heatmap)
+    #                                         fig.update_layout(width=300, height=400) 
+    #                                         fig_col2.write(fig)
+
+    #                                         fig_col1.markdown("#### Histogram")
+    #                                         fig2 = px.histogram(data_frame=df_filtered, x=x_histo)
+    #                                         fig2.update_layout(width=500, height=350) 
+    #                                         fig_col1.write(fig2)
+    #                                     else:
+    #                                         st.warning('Please specify the requirements')
+
+    #                                     st.markdown("#### Detailed Data View")
+    #                                     st.dataframe(df_filtered)       
+    #                                     time.sleep(2)
+    #                                     if seconds == 0:
+    #                                         break
+
+    #                             else:
+    #                                 st.warning('Please specify the requirements')
+    #                         else:
+    #                             st.warning('Please specify the column value')
+
+    #             download_as_xlsx(st.session_state.df)
+    #             # Clear the previous output
+    #             result_container.empty()
+
+
+    #     elif file_upload is None and default_dataset:
+    #             df = pd.read_excel('Fruit.xlsx')
+    #             Analytics()  
+
+    #             with st.expander("Records"):
+    #                 selected = st.multiselect('Filter:', df.columns[3:])
+    #                 st.dataframe(df[selected], use_container_width=True)
+
+    #                 if selected:
+    #                     # Add form for new record
+    #                     st.sidebar.header("Add New Record")
+    #                     options_form = st.sidebar.form("Option Form")
+    #                     date_details = None  # Initialize date_details
+    #                     origin = None  # Initialize origin
+    #                     code = None
+    #                     address = None
+    #                     import_country = None
+    #                     tax = None
+    #                     export_type = None
+    #                     product_type = None
+    #                     unit = None
+    #                     currency = None
+    #                     hscode = None
+    #                     description = None
+    #                     price = None
+    #                     weight = 0
+
+    #                     # Add form components
+    #                     for column in selected:
+    #                         if column == 'Date':
+    #                             date_details = options_form.date_input("Select time", todayDate)
+    #                         elif column == 'Mã_tờ_khai':
+    #                             code = options_form.text_input("Code", max_chars=12, disabled=False)
+    #                         elif column == 'Công_ty_nhập':
+    #                             import_company = options_form.text_input("Import Company", value='BFC', disabled=False)
+    #                         elif column == 'Địa_chỉ':
+    #                             address = options_form.text_input("Company Address", disabled=False)
+    #                         elif column == 'Xuất_xứ':
+    #                             import_country = options_form.text_input("Import Country", value='Vietnam', disabled=False)
+    #                         elif column == 'Nhà_cung_cấp':
+    #                             supplier = options_form.text_input("Supplier", disabled=False)
+    #                         elif column == 'Mã_số_thuế':
+    #                             tax = options_form.number_input("Tax Code", max_value=12, disabled=False)
+    #                         elif column == 'Xuất_xứ':
+    #                             origin = options_form.selectbox("Origin", ["United States", "Germany", 'Japan', 'China', 'Slovenia', 'Thailand', 'China', 'Spain', 'Singapore', 'India'])
+    #                         elif column == 'Loại':
+    #                             export_type = options_form.selectbox("Export Type", ["Xuất Trực Tiếp", "Hộ Kinh Doanh Cá Thể", "Xuất Uỷ Thác"])
+    #                         elif column == 'HScode':
+    #                             hscode = options_form.text_input("Tax Code", max_chars=8, placeholder='HScode requires 8 digits', disabled=False)
+    #                         elif column == 'Product':
+    #                             product = options_form.text_input("Product Name", value='Orange', disabled=False)
+    #                         elif column == 'Mô_tả_sản_phẩm':
+    #                             description = options_form.text_input("Product Description", value='', disabled=False)
+    #                         elif column == 'PhânLoại':
+    #                             product_type = options_form.selectbox("Product Type", ["Sấy", "Sấy Khô", "Sấy Giòn", "Sấy Dẻo"])
+    #                         elif column == 'Số_lượng':
+    #                             quantity = options_form.number_input("Quantity", min_value=0, disabled=False)
+    #                         elif column == 'Đơn_vị':
+    #                             unit = options_form.selectbox("Unit", ["KG", "Ton", 'Bag'])
+    #                         elif column == 'Khối_lượng':
+    #                             weight = options_form.number_input("Weight", min_value=0, disabled=False)
+    #                         elif column == 'Đơn_giá':
+    #                             price = options_form.number_input("Price per unit", min_value=0.1, step=0.1, disabled=False)
+    #                         elif column == 'Tiền_tệ':
+    #                             currency = options_form.text_input("Currency", value='USD', disabled=True)
+
+    #                     # Form submission button
+    #                     add_data = options_form.form_submit_button(label="Add")
+
+    #                     if add_data:
+    #                         if 'import_company' in locals() and 'supplier' in locals() and 'product' in locals() and 'quantity' in locals() and date_details is not None:
+    #                             if date_details.day is not None and date_details.month is not None and date_details.year is not None:
+    #                                 df = pd.concat([df, pd.DataFrame.from_records([{
+    #                                     'Day': date_details.day,
+    #                                     'Month': date_details.month,
+    #                                     'Year': date_details.year,
+    #                                     'Date': date_details,
+    #                                     'Mã_tờ_khai': code,
+    #                                     'Công_ty_nhập': import_company,
+    #                                     'Địa_chỉ': address,
+    #                                     'Nước_nhập': import_country,
+    #                                     'Nhà_cung_cấp': supplier,
+    #                                     'Mã_số_thuế': tax,
+    #                                     'Xuất_xứ': origin,
+    #                                     'Loại': export_type,
+    #                                     'HScode': hscode,
+    #                                     'Product': product,
+    #                                     'Mô_tả_sản_phẩm': description,
+    #                                     'PhânLoại': product_type,
+    #                                     'Số_lượng': float(quantity),
+    #                                     'Đơn_vị': unit,
+    #                                     'Khối_lượng': float(weight),
+    #                                     'Thành_tiền': float(quantity * price),
+    #                                     'Tiền_tệ': currency,
+    #                                     'Đơn_giá': float(price)
+    #                                 }])]).reset_index(drop=True)   # solve the error: index of latest record is 0
+    #                                 try:
+    #                                     df.to_excel("Fruit.xlsx", index=False)
+    #                                     st.success('Add row(s) successfully $')
+
+    #                                 except:
+    #                                     st.warning("Unable to write, Please close your dataset !!")
+    #                             else:
+    #                                 st.warning("Please select a valid date.")
+    #                         else:
+    #                             st.sidebar.error("Fields [Import Company, Supplier, Product, Quantity] are required", icon="🚨")
+    #                 else:
+    #                     st.warning('Please select column(s) first!')
+
+
+    #             with st.expander("Dashboard"):
+
+    #                     st.title("Real-Time / Live Dashboard")
+    #                     # Top-level filters
+    #                     product_filter = st.selectbox("Select the Product", pd.unique(df["Product"]))
+
+    #                     # Creating a single-element container
+    #                     placeholder = st.empty()
+    #                     df_filtered = df[df["Product"] == product_filter]
+
+    #                     # Initialize previous values using st.session_state
+    #                     if 'pre_avg_price' not in st.session_state:
+    #                         st.session_state.pre_avg_price = 0
+    #                         st.session_state.pre_count_quantity = 0
+    #                         st.session_state.pre_avg_total = 0
+
+    #                     # Near real-time / live feed simulation
+    #                     for seconds in range(200):
+    #                         avg_price = np.mean(df_filtered["Đơn_giá"])
+    #                         count_quantity = int(df_filtered["Số_lượng"].count())
+    #                         avg_total = np.mean(df_filtered["Số_lượng"]) * avg_price
+
+    #                         kpi1, kpi2, kpi3 = st.columns(3)
+    #                         kpi1.metric(
+    #                                 label="Average Price",
+    #                                 value=f'$ {round(avg_price,0)} ',
+    #                                 delta= round(avg_price - st.session_state.pre_avg_price,0)
+    #                         )
+    #                         kpi2.metric(
+    #                                 label="Quantity Count",
+    #                                 value=f'$ {count_quantity} ',
+    #                                 delta= count_quantity - st.session_state.pre_count_quantity
+    #                         )
+    #                         kpi3.metric(
+    #                                 label="Average Total",
+    #                                 value=f"$ {round(avg_total, 2)} ",
+    #                                 delta= round(avg_total - st.session_state.pre_avg_total,0)
+    #                         )
+
+    #                         c1, c2 = st.columns(2)
+    #                         with c1:
+    #                             st.write("Average Price:", avg_price)
+    #                             st.write("Quantity Records:", count_quantity)
+    #                             st.write("Average Total:", avg_total)
+    #                         with c2:
+    #                             st.write("Delta Average Price :", round(avg_price - st.session_state.pre_avg_price, 0))
+    #                             st.write("Delta Quantity Records:", count_quantity - st.session_state.pre_count_quantity)
+    #                             st.write("Delta Average Total:", round(avg_total - st.session_state.pre_avg_total, 0))
+
+    #                         # Update previous values in st.session_state
+    #                         st.session_state.pre_avg_price = avg_price
+    #                         st.session_state.pre_count_quantity = count_quantity
+    #                         st.session_state.pre_avg_total = avg_total
+
+    #                         fig_col1, fig_col2 = st.columns(2)
+    #                         fig_col1.markdown("#### Heatmap")
+    #                         fig = px.density_heatmap(data_frame=df_filtered, y="Đơn_giá", x="Thành_tiền")
+    #                         fig.update_layout(width=300, height=400) 
+    #                         fig_col1.write(fig)
+    #                         fig_col2.markdown("#### Histogram")
+    #                         fig2 = px.histogram(data_frame=df_filtered, x="Đơn_giá")
+    #                         fig2.update_layout(width=500, height=350) 
+    #                         fig_col2.write(fig2)
+
+    #                         st.markdown("#### Detailed Data View")
+    #                         # Convert date column to string before displaying
+    #                         df_filtered_str = df_filtered.copy()
+    #                         if 'Date' in df_filtered_str.columns:
+    #                             df_filtered_str['Date'] = df_filtered_str['Date'].astype(str)
+
+    #                         st.dataframe(df_filtered_str)
+
+    #                         time.sleep(2)
+    #                         if seconds == 0:
+    #                             break
+
+    #     elif file_upload and default_dataset:
+    #         st.error('Cannot process the uploaded and default simultaneously')
+
+    #     else:
+    #         st.error('Please specify your requirement')
+
+
+
+
+# from soccerplots.radar_chart import Radar
+# # Function to create a gauge chart
+# def create_gauge_chart(value, title):
+#     fig = go.Figure()
+
+#     fig.add_trace(go.Indicator(
+#         mode="gauge+number",
+#         value=value,
+#         number={'suffix': "%"},  # Include the '%' symbol next to the value
+#         domain={'x': [0, 1], 'y': [0, 1]},
+#         title={'text': f'{title} (%)'},
+#         gauge=dict(
+#             axis=dict(range=[None, 1000], dtick=100),
+#             bar=dict(color="lightgray"),
+#             steps=[
+#                 dict(range=[0, 100], color="red"),
+#                 dict(range=[100, 200], color="yellow"),
+#                 dict(range=[200, 1000], color="green")
+#             ],
+#         )
+#     ))
+#     fig.update_layout(height=230, width=310,margin=dict(t=40, r=20, l=20, b=20))
+#     return fig
+
+# # Progress bar -> show the progress of each person/department/all between KPI planned and done 
+# def Progressbar():
+#     st.markdown("""
+#                 <style>
+#                     .stProgress > div > div > div > div {
+#                             background-image: linear-gradient(to right, violet, indigo, blue, green, yellow, orange, red);
+#                     }
+#                 </style>
+#                 """, unsafe_allow_html=True)
+#     target  = df['Chỉ tiêu'].sum()
+#     current = df["Thực hiện"].sum()
+#     percent = round(current/target*100)
+#     mybar=st.progress(0)
+#     if percent>100:
+#         st.subheader("Target done !")
+#     else:
+#         mybar.progress(percent,text=f"BFC reached {percent:.0f}% of ${target:.2f}")
+
+# # Function to create a radar chart
+# def generate_radar_chart(df, main_object_column, kpi_columns):
+#     fig = go.Figure()
+
+#     # Calculate the max range for 'KPI Quy đổi', 'KPI tính lương', 'TH/CT' based on the size of each employee group
+#     df['max_range'] = df.groupby(main_object_column).transform('size') * 100
+
+#     for main_object in df[main_object_column].unique():
+#         values = df[df[main_object_column] == main_object][kpi_columns].sum().tolist()
+#         sum_values = np.sum(values)
+
+#         fig.add_trace(go.Scatterpolar(
+#             r=values,
+#             theta=kpi_columns,
+#             fill='toself',
+#             name=main_object
+#         ))
+
+#     max_range = 100 * df[kpi_columns].sum(axis=1).max()
+#     fig.update_layout(
+#     height=350, width=450,
+#     polar=dict(
+#         radialaxis=dict(
+#             visible=True,
+#             range=[0, df['max_range'].max()]
+#         )),
+#     showlegend=True
+#     )
+#     return fig
+
+
+# if selected == 'Dashboard':
+#     nav_select = option_menu(
+#                 menu_title=None, 
+#                 options=['Stock','KPIs'], 
+#                 icons=['aspect-ratio','pencil-square'], 
+#                 menu_icon='three-dots', 
+#                 default_index=0, 
+#                 orientation='horizontal',
+#                 styles={
+#                     'container':{'padding':'0!important','background-color':'#A979BF'},
+#                     'icon':{'color':'black','font-size':'25px'},
+#                     'nav-link': {
+#                         'font-size':'22px',
+#                         'text-align':'center',
+#                         'margin': '0px',
+#                         'line-height': '0.5',
+#                         '--hover-color': '#eee',
+#                     },
+#                     'nav-link-selected': {'background-color':'#dabb42'},
+#                 },
+#             )
+#     if nav_select == 'KPIs':
+#         default_report = st.toggle('Use default KPI database')
+#         file_upload = st.file_uploader("Upload a file (XLSX or CSV)", type=["xlsx", "csv"])
+#         if not default_report and file_upload is not None:
+#             df = process_file(file_upload)
+#             if df is not None:
+#                 date_column = st.sidebar.selectbox('Choose Date column:', df.columns,index=None,placeholder='...') 
+#                 with st.container:
+#                     c1,c2,c3,c4,c5 = st.columns(5)
 
         
-        if default_report:
-            dim_emp =  pd.read_excel('KPI.xlsx',sheet_name='Dim_Employee')
-            dim_kpi =  pd.read_excel('KPI.xlsx',sheet_name='Dim_KPI')
-            fact_kpi = pd.read_excel('KPI.xlsx',sheet_name='Fact_KPI')
-            fact_dept = pd.merge(fact_kpi, dim_emp, on='Employee', how='left')
-            df = pd.merge(fact_dept, dim_kpi, on='Mã mục  tiêu thước đo', how='left')
-            df['Department'] = df['Department'].apply(lambda x: x.split(':')[1] if isinstance(x, str) else x)    
-            df[['KPI Quy đổi', 'KPI tính lương']] = (df[['KPI Quy đổi', 'KPI tính lương']] * 100).round(2)
-            df[['Chỉ tiêu', 'Thực hiện']] = df[['Chỉ tiêu', 'Thực hiện']].round(2)
-            df['TH/CT'] = df['Thực hiện'] / df['Chỉ tiêu'] * 100
+#         if default_report:
+#             dim_emp =  pd.read_excel('KPI.xlsx',sheet_name='Dim_Employee')
+#             dim_kpi =  pd.read_excel('KPI.xlsx',sheet_name='Dim_KPI')
+#             fact_kpi = pd.read_excel('KPI.xlsx',sheet_name='Fact_KPI')
+#             fact_dept = pd.merge(fact_kpi, dim_emp, on='Employee', how='left')
+#             df = pd.merge(fact_dept, dim_kpi, on='Mã mục  tiêu thước đo', how='left')
+#             df['Department'] = df['Department'].apply(lambda x: x.split(':')[1] if isinstance(x, str) else x)    
+#             df[['KPI Quy đổi', 'KPI tính lương']] = (df[['KPI Quy đổi', 'KPI tính lương']] * 100).round(2)
+#             df[['Chỉ tiêu', 'Thực hiện']] = df[['Chỉ tiêu', 'Thực hiện']].round(2)
+#             df['TH/CT'] = df['Thực hiện'] / df['Chỉ tiêu'] * 100
 
-            with st.expander('Full Dataset'):
-                st.write(df)
+#             with st.expander('Full Dataset'):
+#                 st.write(df)
 
-            st.markdown("<h1 style='text-align: center; font-size: 30px; background-image: linear-gradient(to right, #eeaeca, #8a3ea8); color:#d4cc5b;'>BFC's KPI Dashboard</h1>", unsafe_allow_html=True)
-            st.divider()
-            col1, col2, col3, col4, col5 = st.columns([0.6,1,1,1,1],gap='small')
-            col1.image(image,use_column_width=True)
-            VienCanh = col2.multiselect("Select Scene", options=df["Viễn cảnh"].unique(), default=None)
-            deparment = col3.multiselect("Select Department", options=df["Department"].unique(), default=None)
-            employee = col4.multiselect("Select Employee", options=df["Employee"].unique(), default=None)
-            KyTinh = col5.multiselect("Select Time", options=df["Kỳ tính"].unique(), default=None)
-            st.divider()
+#             st.markdown("<h1 style='text-align: center; font-size: 30px; background-image: linear-gradient(to right, #eeaeca, #8a3ea8); color:#d4cc5b;'>BFC's KPI Dashboard</h1>", unsafe_allow_html=True)
+#             st.divider()
+#             col1, col2, col3, col4, col5 = st.columns([0.6,1,1,1,1],gap='small')
+#             col1.image(image,use_column_width=True)
+#             VienCanh = col2.multiselect("Select Scene", options=df["Viễn cảnh"].unique(), default=None)
+#             deparment = col3.multiselect("Select Department", options=df["Department"].unique(), default=None)
+#             employee = col4.multiselect("Select Employee", options=df["Employee"].unique(), default=None)
+#             KyTinh = col5.multiselect("Select Time", options=df["Kỳ tính"].unique(), default=None)
+#             st.divider()
 
-            if deparment or employee or VienCanh or KyTinh:
+#             if deparment or employee or VienCanh or KyTinh:
 
-                Progressbar()
+#                 Progressbar()
 
-                df_selection = df[df['Department'].isin(deparment) | df['Employee'].isin(employee) | df['Viễn cảnh'].isin(VienCanh) | df['Kỳ tính'].isin(KyTinh)]
-                df_selection['Month'] = pd.to_datetime(df_selection['Kỳ tính'], format='%m/%Y').dt.month
+#                 df_selection = df[df['Department'].isin(deparment) | df['Employee'].isin(employee) | df['Viễn cảnh'].isin(VienCanh) | df['Kỳ tính'].isin(KyTinh)]
+#                 df_selection['Month'] = pd.to_datetime(df_selection['Kỳ tính'], format='%m/%Y').dt.month
 
-                # METRIC 1
-                done_percentage = (df_selection['Thực hiện'].mean() / df_selection['Chỉ tiêu'].mean()) * 100
-                left_target = (df_selection['Thực hiện'] - df_selection['Chỉ tiêu']).sum()
+#                 # METRIC 1
+#                 done_percentage = (df_selection['Thực hiện'].mean() / df_selection['Chỉ tiêu'].mean()) * 100
+#                 left_target = (df_selection['Thực hiện'] - df_selection['Chỉ tiêu']).sum()
 
-                # METRIC 2
-                # Get the revenue for the current month
-                current_month_revenue = df_selection.loc[df_selection['Month'] == df_selection['Month'].max(), 'Thực hiện'].sum()
-                # Find the maximum month
-                max_month = df_selection['Month'].max()
-                # Calculate the sum of 'Thực hiện' for the last month
-                last_month_revenue = df_selection.loc[df_selection['Month'] == max_month - 1, 'Thực hiện'].sum()
-                # Calculate the difference in revenue
-                revenue_difference = current_month_revenue - last_month_revenue
+#                 # METRIC 2
+#                 # Get the revenue for the current month
+#                 current_month_revenue = df_selection.loc[df_selection['Month'] == df_selection['Month'].max(), 'Thực hiện'].sum()
+#                 # Find the maximum month
+#                 max_month = df_selection['Month'].max()
+#                 # Calculate the sum of 'Thực hiện' for the last month
+#                 last_month_revenue = df_selection.loc[df_selection['Month'] == max_month - 1, 'Thực hiện'].sum()
+#                 # Calculate the difference in revenue
+#                 revenue_difference = current_month_revenue - last_month_revenue
 
-                # METRIC 3
-                # Find the row with the maximum 'KPI tính lương'
-                max_kpi_row = df_selection.loc[df_selection['KPI tính lương'].idxmax()]
-                max_kpi_value = max_kpi_row['KPI tính lương'] 
-                # Extract the month from the row
-                max_kpi_month = max_kpi_row['Month']
+#                 # METRIC 3
+#                 # Find the row with the maximum 'KPI tính lương'
+#                 max_kpi_row = df_selection.loc[df_selection['KPI tính lương'].idxmax()]
+#                 max_kpi_value = max_kpi_row['KPI tính lương'] 
+#                 # Extract the month from the row
+#                 max_kpi_month = max_kpi_row['Month']
 
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric(label="🦁 Percentage of Done over Target",    value=f'{done_percentage:.2f}%',  delta=f'{left_target:.2f}')
-                c2.metric(label="🦖 Current and Previous Done Revenue:",value=f"{current_month_revenue:.2f}",   delta=f"{revenue_difference:.2f}")
-                c3.metric(label="🦦 Highest KPI Value with Month", value=f"${max_kpi_value:.0f}", delta=f"Month: {max_kpi_month}")
-                style_metric_cards(background_color="#A979BF",border_left_color="#E4D96F",border_color="#1f66bd",box_shadow="#F71938")
+#                 c1, c2, c3 = st.columns(3)
+#                 c1.metric(label="🦁 Percentage of Done over Target",    value=f'{done_percentage:.2f}%',  delta=f'{left_target:.2f}')
+#                 c2.metric(label="🦖 Current and Previous Done Revenue:",value=f"{current_month_revenue:.2f}",   delta=f"{revenue_difference:.2f}")
+#                 c3.metric(label="🦦 Highest KPI Value with Month", value=f"${max_kpi_value:.0f}", delta=f"Month: {max_kpi_month}")
+#                 style_metric_cards(background_color="#A979BF",border_left_color="#E4D96F",border_color="#1f66bd",box_shadow="#F71938")
 
-                with c1:
-                    # fig = px.line_polar(df_selection, r='KPI tính lương', theta='Employee', line_close=True)
-                    # fig.update_layout(width=350, height=300) 
-                    # st.write(fig)
+#                 with c1:
+#                     # fig = px.line_polar(df_selection, r='KPI tính lương', theta='Employee', line_close=True)
+#                     # fig.update_layout(width=350, height=300) 
+#                     # st.write(fig)
                     
-                    # radar = Radar()
-                    # params = ['KPI Quy đổi','KPI tính lương','TH/CT']
-                    # ranges = [(0,100),(0,100),(0,100)]
-                    # title = dict(
-                    #         title_name= df_selection["Employee"],
-                    #         subtitle_name='BFC_Employee',
-                    #         title_fontsize=18,
-                    #         subtitle_fontsize=12,
-                    #         title_color='#175397',
-                    #         subtitle_color='#CE3B2C'
-                    #         )
-                    # fig,ax = radar.plot_radar(ranges=ranges,params=params,values=df_selection.iloc[:,-3:-1],
-                    #                                 radar_color=['#175397','#CE3B2C'],
-                    #                                 filename='radar_chart.png',dpi=500,title=title)
+#                     # radar = Radar()
+#                     # params = ['KPI Quy đổi','KPI tính lương','TH/CT']
+#                     # ranges = [(0,100),(0,100),(0,100)]
+#                     # title = dict(
+#                     #         title_name= df_selection["Employee"],
+#                     #         subtitle_name='BFC_Employee',
+#                     #         title_fontsize=18,
+#                     #         subtitle_fontsize=12,
+#                     #         title_color='#175397',
+#                     #         subtitle_color='#CE3B2C'
+#                     #         )
+#                     # fig,ax = radar.plot_radar(ranges=ranges,params=params,values=df_selection.iloc[:,-3:-1],
+#                     #                                 radar_color=['#175397','#CE3B2C'],
+#                     #                                 filename='radar_chart.png',dpi=500,title=title)
                     
-                    main_object_column = 'Employee'
-                    kpi_columns = ['KPI Quy đổi','KPI tính lương','TH/CT']
-                    # Use st.plotly_chart to display the Plotly chart in Streamlit
-                    st.plotly_chart(generate_radar_chart(df_selection, main_object_column, kpi_columns))
+#                     main_object_column = 'Employee'
+#                     kpi_columns = ['KPI Quy đổi','KPI tính lương','TH/CT']
+#                     # Use st.plotly_chart to display the Plotly chart in Streamlit
+#                     st.plotly_chart(generate_radar_chart(df_selection, main_object_column, kpi_columns))
 
 
-                with c2:
-                    st.markdown("<h1 style='text-align: center; font-size: 18px'>Employees KPI Salary</h1>", unsafe_allow_html=True)
-                    source = pd.DataFrame({
-                        "KPI ($)": df_selection["KPI tính lương"],
-                        "Employee": df_selection["Employee"]
-                    })
-                    # BAR CHART (HORIZONTAL)
-                    bar_chart = alt.Chart(source).mark_bar().encode(
-                        x="sum(KPI ($)):Q",
-                        y=alt.Y("Employee:N", sort="-x")
-                        ).properties(
-                            width=350,
-                            height=200
-                        )
-                    st.altair_chart(bar_chart, use_container_width=True,theme=None)
+#                 with c2:
+#                     st.markdown("<h1 style='text-align: center; font-size: 18px'>Employees KPI Salary</h1>", unsafe_allow_html=True)
+#                     source = pd.DataFrame({
+#                         "KPI ($)": df_selection["KPI tính lương"],
+#                         "Employee": df_selection["Employee"]
+#                     })
+#                     # BAR CHART (HORIZONTAL)
+#                     bar_chart = alt.Chart(source).mark_bar().encode(
+#                         x="sum(KPI ($)):Q",
+#                         y=alt.Y("Employee:N", sort="-x")
+#                         ).properties(
+#                             width=350,
+#                             height=200
+#                         )
+#                     st.altair_chart(bar_chart, use_container_width=True,theme=None)
 
-                gauge_value = df_selection['KPI Quy đổi'].sum() 
-                c3.plotly_chart(create_gauge_chart(gauge_value, 'Total Exchanged KPI'))
+#                 gauge_value = df_selection['KPI Quy đổi'].sum() 
+#                 c3.plotly_chart(create_gauge_chart(gauge_value, 'Total Exchanged KPI'))
 
-                table = df_selection[['Mục tiêu công ty','Mục tiêu phòng ban','Thước đo (KPI)','Công thức đo','Trọng số','Chỉ tiêu','Thực hiện','KPI Quy đổi','KPI tính lương']]
-                st.data_editor(
-                    table,
-                    column_config={'KPI tính lương': st.column_config.ProgressColumn(
-                                        "KPI Salary",
-                                        help=f"The KPI salary of employee",
-                                        format="%.2f",
-                                        min_value=0,
-                                        max_value=max_kpi_value),
-                                        },
-                                        hide_index=True)
+#                 table = df_selection[['Mục tiêu công ty','Mục tiêu phòng ban','Thước đo (KPI)','Công thức đo','Trọng số','Chỉ tiêu','Thực hiện','KPI Quy đổi','KPI tính lương']]
+#                 st.data_editor(
+#                     table,
+#                     column_config={'KPI tính lương': st.column_config.ProgressColumn(
+#                                         "KPI Salary",
+#                                         help=f"The KPI salary of employee",
+#                                         format="%.2f",
+#                                         min_value=0,
+#                                         max_value=max_kpi_value),
+#                                         },
+#                                         hide_index=True)
 
-                # Define gridOptions
-                gridOptions = GridOptionsBuilder.from_dataframe(df_selection).build()
-                gridOptions["columnDefs"] = [
-                    { "field": 'Thước đo (KPI)' },
-                    { "field": 'Trọng số' },
-                    { "field": 'Chỉ tiêu' },
-                    { "field": 'Thực hiện' },
-                    { "field": 'KPI Quy đổi' },
-                    { "field": 'KPI tính lương' }
-                ]
-                gridOptions["defaultColDef"] = {
-                    "flex": 1,
-                }
-                gridOptions["autoGroupColumnDef"] = {
-                    "headerName": 'Organisation Hierarchy',
-                    "minWidth": 270,
-                    "cellRendererParams": {
-                        "suppressCount": True,
-                    },
-                }
-                gridOptions["treeData"] = True
-                gridOptions["animateRows"] = True
-                gridOptions["groupDefaultExpanded"] = -1
-                gridOptions["getDataPath"] = JsCode(""" function(data){
-                    const hierarchy = [];
+#                 # Define gridOptions
+#                 gridOptions = GridOptionsBuilder.from_dataframe(df_selection).build()
+#                 gridOptions["columnDefs"] = [
+#                     { "field": 'Thước đo (KPI)' },
+#                     { "field": 'Trọng số' },
+#                     { "field": 'Chỉ tiêu' },
+#                     { "field": 'Thực hiện' },
+#                     { "field": 'KPI Quy đổi' },
+#                     { "field": 'KPI tính lương' }
+#                 ]
+#                 gridOptions["defaultColDef"] = {
+#                     "flex": 1,
+#                 }
+#                 gridOptions["autoGroupColumnDef"] = {
+#                     "headerName": 'Organisation Hierarchy',
+#                     "minWidth": 270,
+#                     "cellRendererParams": {
+#                         "suppressCount": True,
+#                     },
+#                 }
+#                 gridOptions["treeData"] = True
+#                 gridOptions["animateRows"] = True
+#                 gridOptions["groupDefaultExpanded"] = -1
+#                 gridOptions["getDataPath"] = JsCode(""" function(data){
+#                     const hierarchy = [];
 
-                    if (data['Viễn cảnh']) hierarchy.push(data['Viễn cảnh']);
-                    if (data['Mục tiêu công ty']) hierarchy.push(data['Mục tiêu công ty']);
-                    if (data['Mục tiêu phòng ban']) hierarchy.push(data['Mục tiêu phòng ban']);
-                    if (data['Công thức đo']) hierarchy.push(data['Công thức đo']);
+#                     if (data['Viễn cảnh']) hierarchy.push(data['Viễn cảnh']);
+#                     if (data['Mục tiêu công ty']) hierarchy.push(data['Mục tiêu công ty']);
+#                     if (data['Mục tiêu phòng ban']) hierarchy.push(data['Mục tiêu phòng ban']);
+#                     if (data['Công thức đo']) hierarchy.push(data['Công thức đo']);
 
-                    return hierarchy;
-                }""").js_code
+#                     return hierarchy;
+#                 }""").js_code
 
-                # Use gridOptions in AgGrid
-                r = AgGrid(
-                    df_selection,
-                    gridOptions=gridOptions,
-                    height=720,
-                    allow_unsafe_jscode=True,
-                    enable_enterprise_modules=True,
-                    filter=True,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED,
-                    theme="material",
-                    tree_data=True
-                )
+#                 # Use gridOptions in AgGrid
+#                 r = AgGrid(
+#                     df_selection,
+#                     gridOptions=gridOptions,
+#                     height=720,
+#                     allow_unsafe_jscode=True,
+#                     enable_enterprise_modules=True,
+#                     filter=True,
+#                     update_mode=GridUpdateMode.SELECTION_CHANGED,
+#                     theme="material",
+#                     tree_data=True
+#                 )
 
-                # import waterfall_chart # pip install waterfallcharts
-                unique_period = df_selection['Kỳ tính'].unique().tolist()
-                unique_kpi = df_selection['KPI tính lương'].tolist()
+#                 # import waterfall_chart # pip install waterfallcharts
+#                 unique_period = df_selection['Kỳ tính'].unique().tolist()
+#                 unique_kpi = df_selection['KPI tính lương'].tolist()
 
-                # Ensure unique_kpi is a list or another iterable
-                unique_kpi = [unique_kpi] if not isinstance(unique_kpi, (list, tuple)) else unique_kpi
+#                 # Ensure unique_kpi is a list or another iterable
+#                 unique_kpi = [unique_kpi] if not isinstance(unique_kpi, (list, tuple)) else unique_kpi
 
-                # Calculate cumulative values for the waterfall chart
-                cumulative_values = [sum(unique_kpi[:i+1]) for i in range(len(unique_kpi))]
+#                 # Calculate cumulative values for the waterfall chart
+#                 cumulative_values = [sum(unique_kpi[:i+1]) for i in range(len(unique_kpi))]
 
-                # Create a waterfall chart using plotly
-                waterfall_fig = go.Figure(go.Waterfall(
-                    x=unique_period,
-                    y=cumulative_values,
-                    measure=["relative"] + ["total"] * (len(unique_kpi)-1),
-                    textposition="outside",
-                    text=["{:.2f}%".format(val) for val in unique_kpi]
-                ))
+#                 # Create a waterfall chart using plotly
+#                 waterfall_fig = go.Figure(go.Waterfall(
+#                     x=unique_period,
+#                     y=cumulative_values,
+#                     measure=["relative"] + ["total"] * (len(unique_kpi)-1),
+#                     textposition="outside",
+#                     text=["{:.2f}%".format(val) for val in unique_kpi]
+#                 ))
 
-                waterfall_fig.update_layout(
-                    title="Waterfall Chart",
-                    yaxis=dict(title="%"),
-                    xaxis=dict(title="Period")
-                )
+#                 waterfall_fig.update_layout(
+#                     title="Waterfall Chart",
+#                     yaxis=dict(title="%"),
+#                     xaxis=dict(title="Period")
+#                 )
 
-                # Display the waterfall chart in Streamlit
-                st.plotly_chart(waterfall_fig)
+#                 # Display the waterfall chart in Streamlit
+#                 st.plotly_chart(waterfall_fig)
 
-            else: 
-                st.warning('Filter the slicers')
-        else:
-            st.warning('Specify the requirement')
+#             else: 
+#                 st.warning('Filter the slicers')
+#         else:
+#             st.warning('Specify the requirement')
 
     
 
-    if nav_select == 'Stock':
-        from vnstock import *
-        df = listing_companies()
-        no_companies = st.number_input('How many companies:', step=1) 
-        ticker_company = st.selectbox('Which company:', df['ticker']) 
+#     if nav_select == 'Stock':
+#         from vnstock import *
+#         df = listing_companies()
+#         no_companies = st.number_input('How many companies:', step=1) 
+#         ticker_company = st.selectbox('Which company:', df['ticker']) 
 
-        if no_companies:
-            st.write(df.head(no_companies))
-            st.write(company_overview(ticker_company))
-        else:
-            st.warning('Specify the requirement')
+#         if no_companies:
+#             st.write(df.head(no_companies))
+#             st.write(company_overview(ticker_company))
+#         else:
+#             st.warning('Specify the requirement')
 
 # footer()
