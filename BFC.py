@@ -298,8 +298,8 @@ def convert_to_kilogram(description, total, unit):
 with st.sidebar:
     selected = option_menu(
         menu_title='Menu', #required (default:None)
-        options=['Preprocess','Merge','Analyze','Dashboard'], #required
-        icons=['gear-wide-connected','subtract','clipboard-data','window-dash'], #optional -> find on Bootstrap
+        options=['Preprocess','Merge','Analyze'], #required
+        icons=['gear-wide-connected','subtract','clipboard-data'], #optional -> find on Bootstrap
         menu_icon='cast', #optional
         default_index=0 #optional
     )
@@ -936,15 +936,7 @@ if selected == 'Analyze':
                                                                                                  'Add Market Classification column',
                                                                                                  'Add Validation column',
                                                                                                  'Check duplicated row(s)',
-                                                                                                 'EDA',
-                                                                                                 'Visualize the dataset',
-                                                                                                 'Filter by requirements',
-                                                                                                 'Add Excel row(s)',
-                                                                                                 'Report Management',
-                                                                                                 'Pivot Table',
-                                                                                                 'Cohort Analysis',
-                                                                                                 'RFM Analysis',
-                                                                                                 'Add Rules column(s)'))
+                                                                                                ))
 
     if process_type == 'Filter by requirements':
         # Upload a file
